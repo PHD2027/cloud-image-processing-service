@@ -25,6 +25,14 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 #st.success("Supabase connection established successfully!")
+if not st.user.is_logged_in:
+    st.title("Cloud Image Processing as a Service")
+    st.info("Please sign in with your Google account to continue.")
+
+    if st.button("Sign in with Google"):
+        st.login()
+
+    st.stop()
 
 st.title("Cloud Image Processing as a Service")
 st.write(
