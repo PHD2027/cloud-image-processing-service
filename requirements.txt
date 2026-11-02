@@ -1,6 +1,6 @@
-streamlit
+streamlit==1.66.1
 numpy
 Pillow
 PyWavelets
 scipy
-supabase
+supabase==2.33.0
