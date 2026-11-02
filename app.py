@@ -23,6 +23,8 @@ def get_supabase_client():
     )
 
 supabase = get_supabase_client()
+st.success("Supabase connection established successfully!")
+
 st.title("Cloud Image Processing as a Service")
 st.write(
     "Gaussian noise, Wavelet denoising, "
