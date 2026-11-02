@@ -25,9 +25,14 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 #st.success("Supabase connection established successfully!")
-if not st.user.is_logged_in:
-    st.title("Cloud Image Processing as a Service")
-    st.info("Please sign in with your Google account to continue.")
+st.write("Authentication status:", st.user.is_logged_in)
+
+if st.user.is_logged_in:
+    st.success("Google login successful!")
+    st.write("User email:", st.user.get("email", "Email unavailable"))
+    st.write("User name:", st.user.get("name", "Name unavailable"))
+else:
+    st.warning("User is not authenticated.")
 
     if st.button("Sign in with Google"):
         st.login("google")
