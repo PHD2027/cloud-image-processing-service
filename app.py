@@ -35,7 +35,7 @@ else:
     st.warning("User is not authenticated.")
 
     if st.button("Sign in with Google"):
-        st.login("google")
+        st.login()
 
     st.stop()
 
