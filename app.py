@@ -4,13 +4,25 @@ import numpy as np
 import pywt
 from scipy.sparse.linalg import svds
 from PIL import Image
+from supabase import create_client, Client
 
 st.set_page_config(
     page_title="Cloud Image Processing Service",
     page_icon="🖼️",
     layout="wide"
 )
+# -----------------------------
+# Supabase connection
+# -----------------------------
 
+@st.cache_resource
+def get_supabase_client():
+    return create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_ANON_KEY"]
+    )
+
+supabase = get_supabase_client()
 st.title("Cloud Image Processing as a Service")
 st.write(
     "Gaussian noise, Wavelet denoising, "
