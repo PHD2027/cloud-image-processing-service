@@ -4,4 +4,3 @@ Pillow
 PyWavelets
 scipy
 supabase==2.33.0
-
