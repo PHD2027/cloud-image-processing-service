@@ -30,7 +30,7 @@ if not st.user.is_logged_in:
     st.info("Please sign in with your Google account to continue.")
 
     if st.button("Sign in with Google"):
-        st.login()
+        st.login("google")
 
     st.stop()
 
