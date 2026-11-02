@@ -5,7 +5,7 @@ import pywt
 from scipy.sparse.linalg import svds
 from PIL import Image
 from supabase import create_client, Client
-
+st.write("Streamlit version:", st.__version__)
 
 st.set_page_config(
     page_title="Cloud Image Processing Service",
