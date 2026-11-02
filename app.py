@@ -5,7 +5,7 @@ import pywt
 from scipy.sparse.linalg import svds
 from PIL import Image
 from supabase import create_client, Client
-st.write("Streamlit version:", st.__version__)
+#st.write("Streamlit version:", st.__version__)
 
 st.set_page_config(
     page_title="Cloud Image Processing Service",
@@ -25,21 +25,23 @@ def get_supabase_client():
 
 supabase = get_supabase_client()
 #st.success("Supabase connection established successfully!")
-st.write("Authentication status:", st.user.is_logged_in)
-st.write(
-    "User object:",
-    st.user.to_dict() if st.user.is_logged_in else "No authenticated user"
-)
-if st.user.is_logged_in:
-    st.success("Google login successful!")
-    st.write("User email:", st.user.get("email", "Email unavailable"))
-    st.write("User name:", st.user.get("name", "Name unavailable"))
-else:
-    st.warning("User is not authenticated.")
+# Google Authentication
+
+if not st.user.is_logged_in:
+    st.title("Cloud Image Processing as a Service")
+    st.info("Please sign in with your Google account.")
 
     if st.button("Sign in with Google"):
         st.login()
 
+    st.stop()
+
+st.sidebar.write(
+    f"Signed in as: {st.user.get('name', 'User')}"
+)
+
+if st.sidebar.button("Sign out"):
+    st.logout()
     st.stop()
 
 st.title("Cloud Image Processing as a Service")
