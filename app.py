@@ -2,6 +2,7 @@
 import streamlit as st
 import numpy as np
 import pywt
+from scipy.sparse.linalg import svds
 from PIL import Image
 
 st.set_page_config(
@@ -12,10 +13,14 @@ st.set_page_config(
 
 st.title("Cloud Image Processing as a Service")
 st.write(
-    "Upload an image, add Gaussian noise, "
-    "and compare Wavelet denoising results."
+    "Gaussian noise, Wavelet denoising, "
+    "and SVD-based image reconstruction."
 )
 
+
+# -----------------------------
+# Quality metrics
+# -----------------------------
 
 def calculate_mse(original, processed):
     difference = original - processed
@@ -28,35 +33,31 @@ def calculate_psnr(mse_value):
     return 10 * np.log10(1.0 / mse_value)
 
 
+# -----------------------------
+# Soft thresholding
+# -----------------------------
+
 def soft_threshold(coefficients, threshold):
-    """
-    Soft thresholding:
-    sign(c) * max(|c| - threshold, 0)
-    """
     return (
         np.sign(coefficients)
         * np.maximum(np.abs(coefficients) - threshold, 0)
     )
 
 
-def wavelet_denoising(noisy_image, threshold_multiplier):
-    """
-    One-level 2D Haar wavelet denoising.
-    Approximation coefficients are preserved.
-    Detail coefficients are soft-thresholded.
-    """
+# -----------------------------
+# Wavelet denoising
+# -----------------------------
 
-    # Step 1: Apply 2D Discrete Wavelet Transform
+def wavelet_denoising(noisy_image, threshold_multiplier):
+
     coeffs = pywt.dwt2(noisy_image, wavelet="haar")
 
     approximation, (horizontal, vertical, diagonal) = coeffs
 
-    # Step 2: Estimate noise standard deviation
     sigma_estimated = (
         np.median(np.abs(diagonal)) / 0.6745
     )
 
-    # Step 3: Calculate universal threshold
     number_of_pixels = noisy_image.size
 
     threshold = (
@@ -65,7 +66,6 @@ def wavelet_denoising(noisy_image, threshold_multiplier):
         * threshold_multiplier
     )
 
-    # Step 4: Apply soft thresholding to detail coefficients
     horizontal_filtered = soft_threshold(
         horizontal, threshold
     )
@@ -78,7 +78,6 @@ def wavelet_denoising(noisy_image, threshold_multiplier):
         diagonal, threshold
     )
 
-    # Step 5: Reconstruct image using inverse DWT
     filtered_coeffs = (
         approximation,
         (
@@ -93,7 +92,6 @@ def wavelet_denoising(noisy_image, threshold_multiplier):
         wavelet="haar"
     )
 
-    # Match reconstructed dimensions to input dimensions
     denoised_image = denoised_image[
         :noisy_image.shape[0],
         :noisy_image.shape[1]
@@ -106,6 +104,43 @@ def wavelet_denoising(noisy_image, threshold_multiplier):
     return denoised_image, sigma_estimated, threshold
 
 
+# -----------------------------
+# Truncated SVD reconstruction
+# -----------------------------
+
+def svd_reconstruction(image, rank):
+
+    # Compute the largest rank singular components
+    u, singular_values, vt = svds(
+        image,
+        k=rank,
+        which="LM"
+    )
+
+    # svds returns singular values in ascending order.
+    # Reverse them to get descending order.
+    singular_values = singular_values[::-1]
+    u = u[:, ::-1]
+    vt = vt[::-1, :]
+
+    # Reconstruct the image using the selected rank
+    reconstructed = (
+        u
+        @ np.diag(singular_values)
+        @ vt
+    )
+
+    reconstructed = np.clip(
+        reconstructed, 0.0, 1.0
+    )
+
+    return reconstructed
+
+
+# -----------------------------
+# User interface
+# -----------------------------
+
 uploaded_file = st.file_uploader(
     "Choose an image",
     type=["png", "jpg", "jpeg"]
@@ -115,7 +150,7 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
 
     image = Image.open(uploaded_file).convert("L")
-    image.thumbnail((512, 512))
+    image.thumbnail((256, 256))
 
     original = np.asarray(
         image, dtype=np.float64
@@ -139,6 +174,16 @@ if uploaded_file is not None:
         step=0.1
     )
 
+    max_rank = min(original.shape) - 1
+
+    rank = st.sidebar.slider(
+        "SVD rank (k)",
+        min_value=1,
+        max_value=max_rank,
+        value=max(1, int(max_rank * 0.25)),
+        step=1
+    )
+
     rng = np.random.default_rng(42)
 
     noise = rng.normal(
@@ -153,22 +198,32 @@ if uploaded_file is not None:
         1.0
     )
 
-    # Apply Wavelet denoising
-    denoised, estimated_sigma, threshold = (
+    # Stage 1: Wavelet
+    wavelet_image, estimated_sigma, threshold = (
         wavelet_denoising(
             noisy,
             threshold_multiplier
         )
     )
 
+    # Stage 2: SVD applied to Wavelet output
+    svd_image = svd_reconstruction(
+        wavelet_image,
+        rank
+    )
+
+    # -----------------------------
+    # Display images
+    # -----------------------------
+
     st.subheader("Image comparison")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.image(
             original,
-            caption="Original image",
+            caption="Original",
             clamp=True,
             use_container_width=True
         )
@@ -176,59 +231,80 @@ if uploaded_file is not None:
     with col2:
         st.image(
             noisy,
-            caption="Noisy image",
+            caption="Noisy",
             clamp=True,
             use_container_width=True
         )
 
     with col3:
         st.image(
-            denoised,
-            caption="Wavelet-denoised image",
+            wavelet_image,
+            caption="Wavelet denoising",
             clamp=True,
             use_container_width=True
         )
 
-    # Calculate quality metrics
-    mse_noisy = calculate_mse(original, noisy)
-    psnr_noisy = calculate_psnr(mse_noisy)
+    with col4:
+        st.image(
+            svd_image,
+            caption="Wavelet + SVD",
+            clamp=True,
+            use_container_width=True
+        )
 
-    mse_denoised = calculate_mse(original, denoised)
-    psnr_denoised = calculate_psnr(mse_denoised)
+    # -----------------------------
+    # Metrics
+    # -----------------------------
+
+    results = [
+        ("Noisy", noisy),
+        ("Wavelet", wavelet_image),
+        ("Wavelet + SVD", svd_image)
+    ]
 
     st.subheader("Quality measurements")
 
-    metric1, metric2 = st.columns(2)
+    metric_columns = st.columns(3)
 
-    with metric1:
-        st.markdown("**Noisy image**")
-        st.metric("MSE", f"{mse_noisy:.6f}")
+    for column, (name, result_image) in zip(
+        metric_columns, results
+    ):
 
-        if np.isinf(psnr_noisy):
-            st.metric("PSNR", "Infinite")
-        else:
-            st.metric("PSNR", f"{psnr_noisy:.2f} dB")
+        mse_value = calculate_mse(
+            original, result_image
+        )
 
-    with metric2:
-        st.markdown("**Wavelet-denoised image**")
-        st.metric("MSE", f"{mse_denoised:.6f}")
+        psnr_value = calculate_psnr(mse_value)
 
-        if np.isinf(psnr_denoised):
-            st.metric("PSNR", "Infinite")
-        else:
-            st.metric("PSNR", f"{psnr_denoised:.2f} dB")
+        with column:
+            st.markdown(f"**{name}**")
+            st.metric("MSE", f"{mse_value:.6f}")
 
-    st.subheader("Wavelet parameters")
+            if np.isinf(psnr_value):
+                st.metric("PSNR", "Infinite")
+            else:
+                st.metric(
+                    "PSNR",
+                    f"{psnr_value:.2f} dB"
+                )
 
-    st.write(f"Wavelet: Haar (db1)")
-    st.write("Decomposition level: 1")
+    # -----------------------------
+    # Parameters
+    # -----------------------------
+
+    st.subheader("Processing parameters")
+
+    st.write("Wavelet: Haar (db1)")
+    st.write("Wavelet decomposition level: 1")
     st.write(f"Estimated noise sigma: {estimated_sigma:.6f}")
-    st.write(f"Applied threshold: {threshold:.6f}")
+    st.write(f"Wavelet threshold: {threshold:.6f}")
+    st.write(f"SVD rank k: {rank}")
+    st.write(f"Image dimensions: {original.shape}")
 
     st.caption(
-        "Wavelet denoising preserves approximation coefficients "
-        "and applies soft thresholding to detail coefficients. "
-        "MSE and PSNR are calculated against the original image."
+        "SVD is applied to the Wavelet-denoised image. "
+        "The selected rank k controls how many singular "
+        "components are retained."
     )
 
 else:
