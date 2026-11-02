@@ -26,7 +26,10 @@ def get_supabase_client():
 supabase = get_supabase_client()
 #st.success("Supabase connection established successfully!")
 st.write("Authentication status:", st.user.is_logged_in)
-
+st.write(
+    "User object:",
+    st.user.to_dict() if st.user.is_logged_in else "No authenticated user"
+)
 if st.user.is_logged_in:
     st.success("Google login successful!")
     st.write("User email:", st.user.get("email", "Email unavailable"))
