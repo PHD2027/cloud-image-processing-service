@@ -3,3 +3,4 @@ numpy
 Pillow
 PyWavelets
 scipy
+supabase
